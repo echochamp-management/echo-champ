@@ -1,0 +1,100 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { Volume2, VolumeX, Bell } from 'lucide-react';
+
+export default function CommandesRecuesPage() {
+  const [audioEnabled, setAudioEnabled] = useState<boolean>(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialisation de l'objet Audio côté client
+  useEffect(() => {
+    audioRef.current = new Audio('/sounds/notification.mp3');
+    // Facultatif : précharger le fichier audio
+    audioRef.current.load();
+  }, []);
+
+  // Fonction pour jouer le son de notification
+  const playNotificationSound = () => {
+    if (audioRef.current && audioEnabled) {
+      audioRef.current.currentTime = 0; // Remettre à zéro si deux commandes s'enchaînent
+      audioRef.current.play().catch((err) => {
+        console.warn('Lecture du son bloquée par le navigateur :', err);
+      });
+    }
+  };
+
+  // Activation manuelle du son par l'utilisateur pour contourner l'Autoplay Policy
+  const enableAudioContext = () => {
+    if (audioRef.current) {
+      audioRef.current
+        .play()
+        .then(() => {
+          audioRef.current?.pause();
+          if (audioRef.current) audioRef.current.currentTime = 0;
+          setAudioEnabled(true);
+        })
+        .catch(() => {
+          setAudioEnabled(false);
+        });
+    }
+  };
+
+  useEffect(() => {
+    // Écoute Supabase Realtime uniquement sur l'événement INSERT (nouvelles commandes)
+    const channel = supabase
+      .channel('realtime_commandes_recues')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+        },
+        (payload) => {
+          // Déclencher le son à la réception d'une nouvelle commande
+          playNotificationSound();
+          
+          // Mettre à jour la liste des commandes ou recharger les données
+          // fetchOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [audioEnabled]);
+
+  return (
+    <div className="p-6 space-y-4">
+      {/* Bannière de contrôle audio */}
+      <div className="flex items-center justify-between p-4 bg-slate-900 text-white rounded-2xl shadow-sm">
+        <div className="flex items-center gap-3">
+          <Bell className={audioEnabled ? 'text-emerald-400 animate-bounce' : 'text-slate-400'} />
+          <div>
+            <p className="text-sm font-bold">Alertes sonores en direct</p>
+            <p className="text-xs text-slate-400">
+              {audioEnabled
+                ? 'Les notifications sonores sont actives.'
+                : 'Cliquez sur le bouton pour autoriser le son lors des nouvelles commandes.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={enableAudioContext}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            audioEnabled
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md'
+          }`}
+        >
+          {audioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          <span>{audioEnabled ? 'Sons activés' : 'Activer le son'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
