@@ -1,11 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getApiHeaders } from '@/lib/api-client';
 import { Save, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
+interface StockItem {
+  id: string;
+  name: string;
+  initial: number;
+  inputVal: number;
+  sold: number;
+  remaining: number;
+}
+
 export default function StockPage() {
-  const [stocks, setStocks] = useState<any[]>([]);
+  const [stocks, setStocks] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -14,57 +23,42 @@ export default function StockPage() {
   const fetchStockData = async () => {
     setLoading(true);
     setErrorMsg(null);
-    
+
     try {
-      // 1. Récupérer les boissons
-      const { data: products, error: prodErr } = await supabase
-        .from('products')
-        .select('id, name, stock_initial')
-        .eq('category', 'boisson')
-        .order('name', { ascending: true });
+      const response = await fetch('/api/stock');
+      const payload = await response.json();
 
-      if (prodErr) {
-        setErrorMsg('Erreur Supabase (Produits) : ' + prodErr.message);
-        setLoading(false);
-        return;
+      if (!response.ok) {
+        throw new Error(payload.error || 'Erreur chargement stock');
       }
 
-      // 2. Récupérer les ventes réelles
-      const { data: sales, error: salesErr } = await supabase
-        .from('order_items')
-        .select('product_id, quantity, orders!inner(status)')
-        .eq('orders.status', 'payee_validee');
-
-      if (salesErr) {
-        console.warn('Information ventes non disponibles:', salesErr.message);
-      }
-
-      // 3. Calculer automatiquement le stock
-      const calculated = (products || []).map((p) => {
-        const sold = (sales || [])
-          .filter((s) => s.product_id === p.id)
-          .reduce((acc, curr) => acc + curr.quantity, 0);
-
-        return {
-          id: p.id,
-          name: p.name,
-          initial: p.stock_initial,
-          inputVal: p.stock_initial,
-          sold: sold,
-          remaining: p.stock_initial - sold,
-        };
-      });
+      const calculated = (payload.data ?? []).map((p: {
+        id: string;
+        name: string;
+        stock_initial?: number | null;
+        sold?: number | null;
+        remaining?: number | null;
+      }) => ({
+        id: p.id,
+        name: p.name,
+        initial: Number(p.stock_initial || 0),
+        inputVal: Number(p.stock_initial || 0),
+        sold: Number(p.sold || 0),
+        remaining: Number(p.remaining || 0),
+      }));
 
       setStocks(calculated);
-    } catch (err: any) {
-      setErrorMsg('Erreur de connexion : ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      setErrorMsg('Erreur de connexion : ' + message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStockData();
+    const timer = window.setTimeout(() => { void fetchStockData(); }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleInputChange = (id: string, value: string) => {
@@ -80,26 +74,35 @@ export default function StockPage() {
 
   const saveSingleStock = async (id: string, newInitial: number) => {
     setSavingId(id);
-    const { error } = await supabase
-      .from('products')
-      .update({ stock_initial: newInitial })
-      .eq('id', id);
+    try {
+      const authHeaders = await getApiHeaders();
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ stock_initial: newInitial }),
+      });
 
-    if (error) {
-      alert('Erreur de mise à jour du stock : ' + error.message);
-    } else {
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Erreur de mise à jour du stock');
+      }
+
       setMessage('Stock mis à jour avec succès');
       setTimeout(() => setMessage(null), 3000);
       await fetchStockData();
+    } catch (error) {
+      alert(`Erreur de mise à jour du stock : ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    } finally {
+      setSavingId(null);
     }
-    setSavingId(null);
   };
 
   return (
     <div className="p-6 md:ml-64 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border shadow-sm">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Gestion du Stock Boissons</h1>
+          <h1 className="text-2xl font-black text-slate-900">Gestion du Stock Produits</h1>
           <p className="text-sm text-slate-500 mt-1">
             Saisissez les quantités reçues. Les ventes sont déduites automatiquement.
           </p>

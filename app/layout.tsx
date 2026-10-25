@@ -1,13 +1,32 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+import ClientStorageCleanup from '@/components/ClientStorageCleanup';
+import LegalFooter from '@/components/LegalFooter';
+import RoleAccessGuard from '@/components/RoleAccessGuard';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-body',
+  display: 'swap',
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: 'ECHO-CHAMP MANAGEMENT',
-  description: 'Système d’inventaire et de commande pour ECHO-CHAMP',
+  title: 'ECO CHAMP MANAGEMENT',
+  description: 'Système d’inventaire et de commande pour ECO CHAMP',
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
@@ -16,10 +35,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr">
-      <body className={`${inter.className} bg-slate-100 min-h-screen`}>
+    <html lang="fr" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+      <body className="min-h-screen antialiased text-white">
+        <ClientStorageCleanup />
         <Sidebar />
-        <main>{children}</main>
+        <RoleAccessGuard>
+          <main>{children}</main>
+        </RoleAccessGuard>
+        <LegalFooter />
       </body>
     </html>
   );

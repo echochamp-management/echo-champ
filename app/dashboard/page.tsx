@@ -1,201 +1,157 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { ShieldCheck, Lock, DollarSign, ShoppingBag, Flame, Users, LogOut, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import Link from 'next/link';
+import { 
+  Coffee, 
+  Utensils, 
+  Award, 
+  Pizza, 
+  GlassWater, 
+  ChevronRight,
+  ShoppingCart
+} from 'lucide-react';
 
-export default function DashboardPresidentPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
+export default function DashboardMenuSection() {
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  const [stats, setStats] = useState({
-    ordersCount: 0,
-    drinksSold: 0,
-    customersCount: 0,
-    totalRevenue: 0,
-  });
-  const [closings, setClosings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const menuCategories = [
+    {
+      id: 'petit_dejeuner',
+      title: 'Petit déjeuner / Déjeuner',
+      badge: 'Matin & Midi',
+      icon: <Coffee size={22} className="text-amber-400" />,
+      description: 'Votre journée idéale commence avec nos délicieux petits déjeuners !',
+      bgGradient: 'from-amber-500/10 via-amber-500/5 to-transparent',
+      borderColor: 'border-amber-500/30',
+      tagColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    },
+    {
+      id: 'plat_du_jour',
+      title: 'Plat du jour',
+      badge: 'Fait Maison',
+      icon: <Utensils size={22} className="text-emerald-400" />,
+      description: 'Découvrez nos savoureuses recettes faites maison, préparées avec soin. Rapidité et bon goût sont au rendez-vous pour varier les plaisirs !',
+      bgGradient: 'from-emerald-500/10 via-emerald-500/5 to-transparent',
+      borderColor: 'border-emerald-500/30',
+      tagColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    },
+    {
+      id: 'plats',
+      title: 'Plats',
+      badge: 'Générosité Locale',
+      icon: <Award size={22} className="text-blue-400" />,
+      description: 'Goûtez à la qualité et à la générosité de nos recettes locales et variées !',
+      bgGradient: 'from-blue-500/10 via-blue-500/5 to-transparent',
+      borderColor: 'border-blue-500/30',
+      tagColor: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+    },
+    {
+      id: 'pizza',
+      title: 'Pizza',
+      badge: 'Irrésistible',
+      icon: <Pizza size={22} className="text-rose-400" />,
+      description: 'Savourez l\'instant, une part à la fois ! Dégustez nos irrésistibles pizzas alliant saveurs gourmandes et fromage fondant à souhait.',
+      bgGradient: 'from-rose-500/10 via-rose-500/5 to-transparent',
+      borderColor: 'border-rose-500/30',
+      tagColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+    },
+    {
+      id: 'boissons',
+      title: 'Boissons',
+      badge: 'Rafraîchissant',
+      icon: <GlassWater size={22} className="text-purple-400" />,
+      description: 'Une large sélection de boissons pour satisfaire toutes vos envies.',
+      bgGradient: 'from-purple-500/10 via-purple-500/5 to-transparent',
+      borderColor: 'border-purple-500/30',
+      tagColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+    },
+  ];
 
-  // Code secret du Président (Modifiable ici)
-  const PRESIDENT_PIN = '2026';
+  const filteredCategories = selectedCategory === 'all' 
+    ? menuCategories 
+    : menuCategories.filter(cat => cat.id === selectedCategory);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pin === PRESIDENT_PIN) {
-      setIsAuthenticated(true);
-      setError(false);
-      loadPresidentData();
-    } else {
-      setError(true);
-    }
-  };
-
-  const loadPresidentData = async () => {
-    setLoading(true);
-    const today = new Date().toISOString().split('T')[0];
-
-    // 1. Recette, commandes et nombre réel de clients (ajout de guests_count)
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('id, total_amount, guests_count')
-      .gte('created_at', today)
-      .eq('status', 'payee_validee');
-
-    // 2. Boissons vendues uniquement sur les commandes validées
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('quantity, products!inner(category), orders!inner(status)')
-      .eq('products.category', 'boisson')
-      .eq('orders.status', 'payee_validee');
-
-    // 3. Fiches de clôture signées par les responsables
-    const { data: closingData } = await supabase
-      .from('daily_closing')
-      .select('*')
-      .order('closed_at', { ascending: false });
-
-    const totalDrinks = items?.reduce((acc, curr) => acc + curr.quantity, 0) || 0;
-    const revenue = orders?.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0) || 0;
-
-    // Calcul exact de la somme des clients saisis par le responsable
-    const totalCustomers = orders?.reduce((acc, curr) => {
-      return acc + (curr.guests_count || 1);
-    }, 0) || 0;
-
-    setStats({
-      ordersCount: orders?.length || 0,
-      drinksSold: totalDrinks,
-      customersCount: totalCustomers, // Nombre exact de clients transmis
-      totalRevenue: revenue,
-    });
-    setClosings(closingData || []);
-    setLoading(false);
-  };
-
-  // 1. Écran de Verrouillage
-  if (!isAuthenticated) {
-    return (
-      <div className="p-6 md:ml-64 min-h-screen flex items-center justify-center bg-slate-100">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-2xl shadow-lg border max-w-sm w-full space-y-5 text-center">
-          <div className="w-16 h-16 bg-slate-900 text-amber-400 rounded-full flex items-center justify-center mx-auto">
-            <Lock size={30} />
-          </div>
-          <div>
-            <h1 className="text-xl font-black text-slate-900">Espace Réservé Présidence</h1>
-            <p className="text-xs text-slate-500 mt-1">Saisissez le code d'accès restreint</p>
-          </div>
-          <input
-            type="password"
-            maxLength={6}
-            placeholder="Code PIN"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            className="w-full text-center text-2xl font-black tracking-widest border-2 border-slate-300 p-3 rounded-xl focus:border-amber-500 focus:outline-none"
-          />
-          {error && <p className="text-xs text-red-600 font-bold">Code incorrect. Accès refusé.</p>}
-          <button
-            type="submit"
-            className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition"
-          >
-            Accéder au Panel Présidence
-          </button>
-        </form>
-      </div>
-    );
-  }
-
-  // 2. Vue Présidentielle Déverrouillée
   return (
-    <div className="p-6 md:ml-64 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 text-white p-6 rounded-2xl shadow-md">
+    <section className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative overflow-hidden">
+      {/* En-tête de la section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-6 relative z-10">
         <div>
-          <div className="flex items-center space-x-2 text-amber-400 mb-1">
-            <ShieldCheck size={20} />
-            <span className="text-xs font-black uppercase tracking-wider">Accès Exclusif Président</span>
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-black uppercase tracking-widest mb-2">
+            <span>RESTAURANT</span>
           </div>
-          <h1 className="text-2xl font-black">Supervision Financière & Validations</h1>
+          <h2 className="text-3xl font-black text-white tracking-tight">
+            Plezi Kreyòl <span className="text-amber-400 text-sm font-semibold">by ECO CHAMP S.A</span>
+          </h2>
         </div>
-        <div className="flex items-center space-x-3">
+
+        {/* Boutons d'affichage rapide */}
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={loadPresidentData}
-            className="p-2.5 bg-slate-800 text-amber-400 rounded-xl border border-slate-700 hover:bg-slate-700"
+            onClick={() => setSelectedCategory('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ${
+              selectedCategory === 'all'
+                ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 scale-105'
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+            }`}
           >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            Tout afficher
           </button>
-          <button
-            onClick={() => setIsAuthenticated(false)}
-            className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold"
-          >
-            <LogOut size={16} />
-            <span>Verrouiller</span>
-          </button>
+          {menuCategories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ${
+                selectedCategory === cat.id
+                  ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 scale-105'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              {cat.title.split('/')[0]}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Cartes financières réservées */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="p-5 bg-white border rounded-2xl shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl"><DollarSign size={28} /></div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase">Recette Totale du Jour</p>
-            <p className="text-2xl font-black text-slate-900">{stats.totalRevenue} HTG</p>
-          </div>
-        </div>
-
-        <div className="p-5 bg-white border rounded-2xl shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><ShoppingBag size={28} /></div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase">Total Commandes</p>
-            <p className="text-2xl font-black text-slate-900">{stats.ordersCount}</p>
-          </div>
-        </div>
-
-        <div className="p-5 bg-white border rounded-2xl shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-amber-100 text-amber-600 rounded-xl"><Flame size={28} /></div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase">Boissons Écoulées</p>
-            <p className="text-2xl font-black text-amber-600">{stats.drinksSold}</p>
-          </div>
-        </div>
-
-        <div className="p-5 bg-white border rounded-2xl shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl"><Users size={28} /></div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase">Clients Servis</p>
-            <p className="text-2xl font-black text-slate-900">{stats.customersCount}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Fiches de Clôture avec Signature du Responsable */}
-      <div className="bg-white border rounded-2xl p-6 shadow-sm space-y-4">
-        <h2 className="text-lg font-bold text-slate-900">Rapports de Clôture Journalière (Transmis par les Responsables)</h2>
-        <div className="space-y-4">
-          {closings.length === 0 ? (
-            <p className="text-slate-500 text-sm italic">Aucune clôture signée enregistrée pour le moment.</p>
-          ) : (
-            closings.map((c) => (
-              <div key={c.id} className="p-4 border rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50">
-                <div>
-                  <p className="font-bold text-slate-900">Responsable : {c.responsible_name}</p>
-                  <p className="text-xs text-slate-500">
-                    Date : {new Date(c.closed_at).toLocaleDateString()} à {new Date(c.closed_at).toLocaleTimeString()}
-                  </p>
-                  <p className="text-sm font-black text-emerald-600 mt-1">Chiffre Clôturé : {c.total_revenue} HTG ({c.total_orders} commandes)</p>
+      {/* Cartes cliquables vers /commande */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
+        {filteredCategories.map((item) => (
+          <Link
+            key={item.id}
+            href={`/commande?category=${item.id}`}
+            className={`group relative bg-gradient-to-br ${item.bgGradient} bg-slate-950 border ${item.borderColor} p-6 rounded-2xl shadow-md transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:border-amber-400/50 flex flex-col justify-between overflow-hidden block`}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl group-hover:scale-110 group-hover:border-amber-500/50 transition-transform duration-300">
+                  {item.icon}
                 </div>
-                {c.signature_url && (
-                  <div className="border bg-white p-2 rounded-lg text-center">
-                    <p className="text-[10px] font-bold text-slate-400 mb-1">Signature Numérique :</p>
-                    <img src={c.signature_url} alt="Signature" className="h-12 object-contain" />
-                  </div>
-                )}
+                <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${item.tagColor}`}>
+                  {item.badge}
+                </span>
               </div>
-            ))
-          )}
-        </div>
+
+              <div>
+                <h3 className="text-xl font-bold text-white group-hover:text-amber-400 transition-colors duration-300">
+                  {item.title}
+                </h3>
+                <p className="text-slate-300 text-xs leading-relaxed mt-2.5">
+                  {item.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Bouton d'action vers la prise de commande */}
+            <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-bold text-amber-400 group-hover:text-amber-300 transition-colors">
+              <span className="flex items-center space-x-2">
+                <ShoppingCart size={14} />
+                <span>Commander maintenant</span>
+              </span>
+              <ChevronRight size={16} className="transform group-hover:translate-x-1.5 transition-transform duration-300" />
+            </div>
+          </Link>
+        ))}
       </div>
-    </div>
+    </section>
   );
 }
